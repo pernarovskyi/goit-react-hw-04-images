@@ -1,139 +1,102 @@
+import { useEffect } from 'react';
 import { Searchbar } from 'components/Searchbar';
 import { Button } from 'components/Button';
 import { ImageGalleryErrorView } from 'components/ImageGalleryErrorView';
 import { Loader } from 'components/Loader';
 import { ToastContainer } from 'react-toastify';
-import { Component } from 'react';
 import { Modal } from 'components/Modal';
 import { Container } from './App.styled';
 import { ImageGallery } from 'components/ImageGallery';
 import { getPictures } from 'services/getApi';
 import 'react-toastify/dist/ReactToastify.css';
+import { useState } from 'react';
 
-export class App extends Component {
-  state = {
-    largeImgURL: '',
-    showModal: false,
-    searchText: '',
-    page: 1,
-    status: 'idle',
-    pictures: [],
-    error: '',
-    loadMore: false,
-  };
+const Status = {
+  IDLE: 'idle',
+  PENDING: 'pending',
+  RESOLVED: 'resolved',
+  REJECTED: 'rejecte',
+};
 
-  componentDidUpdate(_, prevState) {
-    const prevSearch = prevState.searchText;
-    const nextSearch = this.state.searchText;
+export function App() {
+  const [pictures, setPictures] = useState([]);
+  const [largeImgURL, setLargeImgURL] = useState('');
+  const [showModal, setModal] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const [page, setPage] = useState(1);
+  const [status, setStatus] = useState(Status.IDLE);
+  const [error, setError] = useState([]);
+  const [loadMore, setLoadMore] = useState(false);
 
-    const prevPage = prevState.page;
-    const nextPage = this.state.page;
-
-    if (prevSearch !== nextSearch || prevPage !== nextPage) {
-      this.setState({
-        status: 'pending',
-        error: '',
-      });
-
-      getPictures(nextSearch, nextPage)
-        .then(({ totalHits, hits }) => {
-          if (hits.length < 1) {
-            this.setState({
-              loadMore: false,
-              status: 'idle',
-            });
-            return this.setState({
-              status: 'rejected',
-              error: {
-                message: 'No matches found.',
-              },
-            });
-          }
-
-          const images = hits.map(
-            ({ id, largeImageURL, tags, webformatURL }) => {            
-              return { totalHits, id, largeImageURL, tags, webformatURL };
-            }
-          );
-
-          this.setState(prevState => {
-            return {
-              pictures: [...prevState.pictures, ...images],
-            };
-          });
-
-          this.setState({
-            status: 'resolved',
-            loadMore:
-              this.state.page < Math.ceil(totalHits / 12) ? true : false,
-          });
-        })
-        .catch(error =>
-          this.setState({ error: error.message, status: 'rejected' })
-        );
-    }
-  }
-
-  handleFormSubmit = newSearchText => {
-    if (newSearchText === this.state.searchText) {
+  useEffect(() => {
+    if (!searchText) {
       return;
     }
-    this.setState({
-      pictures: [],
-      searchText: newSearchText,
-      page: 1,
-      status: 'idle',
-      loadMore: false,
-      showModal: false,
-    });
+    try {
+      setStatus(Status.PENDING);
+      getPictures(searchText, page).then(({ totalHits, hits }) => {
+        if (hits.length < 1) {
+          setStatus(Status.REJECTED);
+          setError({ message: 'No matches found' });
+          return;
+        }
+        const images = hits.map(({ id, largeImageURL, tags, webformatURL }) => {
+          return { totalHits, id, largeImageURL, tags, webformatURL };
+        });
+        setPictures(state => [...state, ...images]);
+        if (totalHits > 12) {
+          setLoadMore(true);
+        }
+        setStatus(Status.RESOLVED);
+      });
+    } catch (error) {
+      setError(error.message);
+      setStatus(Status.REJECTED);
+    }
+  }, [page, searchText]);
+
+  const handleFormSubmit = newSearchText => {
+    if (newSearchText === searchText) {
+      return;
+    }
+
+    setPictures([]);
+    setSearchText(newSearchText);
+    setPage(1);
+    setModal(false);
+    setLoadMore(false);
+    setStatus(Status.IDLE);
+  };
+  const handleLargeImageUrl = url => {
+    setLargeImgURL(url);
+    toggleModal();
+  };
+  const toggleModal = () => {
+    setModal(!showModal);
+  };
+  const handleLoadMore = () => {
+    setPage(page + 1);
   };
 
-  handleLargeImageUrl = url => {
-    this.setState({
-      largeImgURL: url,
-    });
-    this.toggleModal();
-  };
+  return (
+    <Container>
+      {showModal && <Modal imgUrl={largeImgURL} onClose={toggleModal} />}
 
-  handleLoadMore = () => {
-    this.setState(prevState => ({
-      page: prevState.page + 1,
-    }));
-  };
-
-  toggleModal = () => {
-    this.setState(({ showModal }) => ({
-      showModal: !showModal,
-    }));
-  };
-
-  render() {
-    const { pictures, largeImgURL, showModal, status, error, loadMore } =
-      this.state;
-
-    return (
-      <Container>
-        {showModal && <Modal imgUrl={largeImgURL} onClose={this.toggleModal} />}
-
-        <Searchbar onSubmit={this.handleFormSubmit} />
-        {status === 'idle' && (
-          <h1 style={{ textAlign: 'center' }}>
-            Share with some ideas to search pictures on Pixabay
-          </h1>
-        )}
-        {status === 'pending' && <Loader />}
-        {status === 'rejected' && (
-          <ImageGalleryErrorView message={error.message} />
-        )}
-        {pictures.length > 0 && (
-          <ImageGallery
-            pictures={pictures}
-            onImageClick={this.handleLargeImageUrl}
-          />
-        )}
-        {loadMore && <Button onLoadMoreClick={this.handleLoadMore} />}
-        <ToastContainer />
-      </Container>
-    );
-  }
+      <Searchbar onSubmit={handleFormSubmit} />
+      {status === Status.IDLE && (
+        <h1 style={{ textAlign: 'center' }}>
+          Share with some ideas to search pictures on Pixabay
+        </h1>
+      )}
+      {status === Status.PENDING && <Loader />}
+      {status === Status.REJECTED && (
+        <ImageGalleryErrorView message={error.message} />
+      )}
+      {pictures.length > 0 && (
+        <ImageGallery pictures={pictures} onImageClick={handleLargeImageUrl} />
+      )}
+      {loadMore && <Button onLoadMoreClick={handleLoadMore} />}
+      <ToastContainer />
+    </Container>
+  );
 }

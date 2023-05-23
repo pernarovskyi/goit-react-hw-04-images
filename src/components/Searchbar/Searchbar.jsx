@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { useState } from 'react';
 import { toast } from 'react-toastify';
 import {
   Header,
@@ -8,46 +8,40 @@ import {
   SearchFormInput,
 } from './Searchbar.styled';
 
-export class Searchbar extends Component {
-  state = {
-    searchString: '',
+export function Searchbar({ onSubmit }) {
+  const [searchString, setSearchString] = useState('');
+
+  const handleInputChange = e => {
+    setSearchString(e.currentTarget.value.toLowerCase());
   };
 
-  handleInputChange = e => {
-    this.setState({
-      searchString: e.currentTarget.value.toLowerCase(),
-    });
-  };
-
-  handleSubmit = e => {
+  const handleSubmit = e => {
     e.preventDefault();
 
-    if (this.state.searchString.trim() === '') {
+    if (searchString.trim() === '') {
       toast.error('Nothing to search', { autoClose: 1500 });
       return;
     }
-    this.props.onSubmit(this.state.searchString);
-    this.setState({ searchString: '' });
+    onSubmit(searchString);
+    setSearchString('');
   };
 
-  render() {
-    return (
-      <Header>
-        <SearchForm onSubmit={this.handleSubmit}>
-          <SearchFormButton type="submit">
-            <SearchFormButtonLabel>Search</SearchFormButtonLabel>
-          </SearchFormButton>
+  return (
+    <Header>
+      <SearchForm onSubmit={handleSubmit}>
+        <SearchFormButton type="submit">
+          <SearchFormButtonLabel>Search</SearchFormButtonLabel>
+        </SearchFormButton>
 
-          <SearchFormInput
-            type="text"
-            autoComplete="off"
-            autoFocus
-            placeholder="Search images and photos"
-            value={this.state.searchString}
-            onChange={this.handleInputChange}
-          />
-        </SearchForm>
-      </Header>
-    );
-  }
+        <SearchFormInput
+          type="text"
+          autoComplete="off"
+          autoFocus
+          placeholder="Search images and photos"
+          value={searchString}
+          onChange={handleInputChange}
+        />
+      </SearchForm>
+    </Header>
+  );
 }
